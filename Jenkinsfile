@@ -1,12 +1,8 @@
 pipeline {
     agent any
-    
+
     environment {
-        PATH = "/usr/bin:$PATH" // Путь к установленному Go
-    }
-    
-    tools {
-        go "Go" // Название инструмента Go, настроенного в Jenkins
+        DOCKER_IMAGE = 'my-go-app' // Имя Docker-образа
     }
 
     stages {
@@ -19,15 +15,39 @@ pipeline {
         stage('Build and Test') {
             steps {
                 script {
-                    sh '''
-                    if [ ! -f go.mod ]; then
-                        go mod init github.com/oleg09-90/calculator
-                    fi
-                    go mod tidy
-                    go test .
-                    '''
+                    sh 'go mod download' // Скачиваем зависимости Go
+                    sh 'go test ./...'   // Запускаем тесты Go
                 }
             }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build(env.DOCKER_IMAGE) // Строим Docker-образ
+                }
+            }
+        }
+
+        stage('Deploy Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.example.com', 'docker_credentials_id') {
+                        docker.image(env.DOCKER_IMAGE).push() // Загружаем Docker-образ в Docker Registry
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build successful! Deploying...'
+            // Дополнительные действия при успешной сборке
+        }
+        failure {
+            echo 'Build failed!'
+            // Дополнительные действия при ошибке сборки
         }
     }
 }
